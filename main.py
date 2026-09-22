@@ -1,14 +1,24 @@
 from autocaption import ImageLoader, ImageRotator, CarDetector, \
-    ObjectExtractor, SceneExtractor, PhotoDescriber, PhotoDescriberWithQuestion
+    ObjectExtractor, SceneExtractor, PhotoDescriber, PhotoDescriberWithQuestion, \
+    ConfidenceThresholds
 
 
-def run_pipeline(image_path: list[str], source: bool) -> list:
+def run_pipeline(image_path: list[str], source: bool,
+                 confidence: ConfidenceThresholds | None = None) -> list:
     """
     Прогоняет картинку через модели с помощью написанной библиотеки autocaption
     :param image_path: путь к изображению
     :param source: источник картинки (True = локальный путь, False = URL)
+    :param confidence: пороги уверенности для детектора автомобилей, детекции объектов
+        и классификации сцены; None — значения по умолчанию
     :return: текстовое описание окружения картинки
     """
+    if confidence is None:
+        confidence = ConfidenceThresholds()
+    elif not isinstance(confidence, ConfidenceThresholds):
+        raise TypeError(
+            f"confidence должен быть ConfidenceThresholds или None, получено {type(confidence).__name__}")
+
     res = [[] for _ in range(len(image_path))]
 
     # инициализация классов
@@ -16,11 +26,11 @@ def run_pipeline(image_path: list[str], source: bool) -> list:
     print('Инициализация модели поворота')
     rotator = ImageRotator()
     print('Инициализация модели детектора автомобилей')
-    car_detector = CarDetector()
+    car_detector = CarDetector(min_confidence=confidence.car)
     print('Инициализация модели нахождения объектов')
-    object_extractor = ObjectExtractor()
+    object_extractor = ObjectExtractor(min_confidence=confidence.objects)
     print('Инициализация модели классификации сцены')
-    scene_classificator = SceneExtractor()
+    scene_classificator = SceneExtractor(min_confidence=confidence.scene)
     print('Инициализация модели BLIP')
     describer = PhotoDescriber()
     print('Инициализация модели BLIP с вопросом в промте')
@@ -53,7 +63,7 @@ def run_pipeline(image_path: list[str], source: bool) -> list:
 
         # убрал класс tunnel, так как там модель почти всегда выдает 1
         temp_dict = scene_classificator.predict_scene(image)
-        temp_dict.popitem()
+        temp_dict.pop("tunnel", None)
 
         res[i].append(temp_dict)
 

@@ -3,6 +3,8 @@ import torch.nn as nn
 from torchvision import models, transforms
 from ultralytics import YOLO
 
+from .confidence import DEFAULT_CAR_CONFIDENCE, validate_confidence
+
 
 class ImageRotator:
     def __init__(self):
@@ -52,7 +54,8 @@ class ImageRotator:
         return rotated_image
 
 class CarDetector:
-    def __init__(self):
+    def __init__(self, min_confidence: float = DEFAULT_CAR_CONFIDENCE):
+        self.min_confidence = validate_confidence(min_confidence, "min_confidence")
         self.car_detection_model = self.__init_car_detection_model()
 
     @staticmethod
@@ -60,7 +63,7 @@ class CarDetector:
         return YOLO('MODELS/car_detector.pt')
 
     def detect_car(self, image):
-        results = self.car_detection_model(image, verbose=False)
+        results = self.car_detection_model(image, verbose=False, conf=self.min_confidence)
         result = results[0]
 
         if result.boxes is None or len(result.boxes) == 0:
@@ -69,6 +72,8 @@ class CarDetector:
         names = result.names
 
         for box in result.boxes:
+            if float(box.conf) < self.min_confidence:
+                continue
             class_id = int(box.cls.item())
             class_name = names[class_id].lower()
             if class_name in ['car', 'truck']:
