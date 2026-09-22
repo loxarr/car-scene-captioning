@@ -80,6 +80,25 @@ for i, res in enumerate(results):
         print(item)
 ```
 
+### Пороги уверенности
+
+Минимальную уверенность для детектора автомобилей, детекции объектов и классификации сцены
+можно задать через `ConfidenceThresholds` (значения в диапазоне `[0, 1]`):
+
+```python
+from autocaption import ConfidenceThresholds
+
+results = run_pipeline(
+    ["img1.jpg"],
+    source=True,
+    confidence=ConfidenceThresholds(car=0.5, objects=0.4, scene=0.3),
+)
+```
+
+По умолчанию `car=0.25`, `objects=0.25` (стандартный порог YOLO), `scene=0.0` (возвращаются все классы),
+поэтому вызов без `confidence` работает как раньше. Некорректные значения (вне `[0, 1]`, NaN, не число)
+вызывают `ValueError` / `TypeError` до загрузки моделей.
+
 ## Структура проекта
 ```bash
 car-scene-captioning/

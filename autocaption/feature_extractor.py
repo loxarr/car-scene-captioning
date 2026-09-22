@@ -11,9 +11,12 @@ from torchvision import models, transforms
 from torchvision.transforms.functional import InterpolationMode
 from ultralytics import YOLO
 
+from .confidence import DEFAULT_OBJECT_CONFIDENCE, DEFAULT_SCENE_CONFIDENCE, validate_confidence
+
 
 class ObjectExtractor:
-    def __init__(self):
+    def __init__(self, min_confidence: float = DEFAULT_OBJECT_CONFIDENCE):
+        self.min_confidence = validate_confidence(min_confidence, "min_confidence")
 
         self.object_detection_model = self.__init_object_detection_model()
 
@@ -24,7 +27,7 @@ class ObjectExtractor:
         return YOLO('MODELS/yolov8x-oiv7.pt')
 
     def extract_features(self, image) -> dict[str, int]:
-        results = self.object_detection_model(image, verbose=False)
+        results = self.object_detection_model(image, verbose=False, conf=self.min_confidence)
         res_obj_detection = dict()
         detected = []
         for r in results:
@@ -32,6 +35,8 @@ class ObjectExtractor:
                 cls_id = int(box.cls)
                 label = r.names[cls_id]
                 confidence = float(box.conf)
+                if confidence < self.min_confidence:
+                    continue
                 detected.append((label, confidence))
 
         for elem in detected:
@@ -41,7 +46,8 @@ class ObjectExtractor:
 
 
 class SceneExtractor:
-    def __init__(self):
+    def __init__(self, min_confidence: float = DEFAULT_SCENE_CONFIDENCE):
+        self.min_confidence = validate_confidence(min_confidence, "min_confidence")
         self.scene_classification_model = self.__init_scene_classification_model()
 
     @staticmethod
@@ -91,7 +97,12 @@ class SceneExtractor:
             "gas stations",
             "tunnel"
         ]
-        return {lbl: float(p) for lbl, p in zip(labels, probs)}
+        scores = {lbl: float(p) for lbl, p in zip(labels, probs)}
+        return self.filter_scores(scores)
+
+    def filter_scores(self, scores: dict[str, float]) -> dict[str, float]:
+        """Оставляет только классы сцены с уверенностью не ниже min_confidence."""
+        return {lbl: p for lbl, p in scores.items() if p >= self.min_confidence}
 
 
 class PhotoDescriber:
